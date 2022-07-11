@@ -1,16 +1,13 @@
-### Hi there 👋
+# Source Code for SketchConf
 
-<!--
-**SketchConf/SketchConf** is a ✨ _special_ ✨ repository because its `README.md` (this file) appears on your GitHub profile.
+## Build
 
-Here are some ideas to get you started:
+To build the executable, you need to install `flex`, `bison`(at least version 3), `clang`(at least version 10) first.
 
-- 🔭 I’m currently working on ...
-- 🌱 I’m currently learning ...
-- 👯 I’m looking to collaborate on ...
-- 🤔 I’m looking for help with ...
-- 💬 Ask me about ...
-- 📫 How to reach me: ...
-- 😄 Pronouns: ...
-- ⚡ Fun fact: ...
--->
+Type `make` in the shell, the project will be automatically built and the executable will be located at `exec/exp`.
+
+## Run
+
+To run the code, you need to download the dataset from `https://drive.google.com/file/d/1TR5Cpm9_Kc4DDAgyB3CrNyw4Zi1fwLxE/view?usp=sharing` and place the dataset at `dataset/data.dat`.
+
+Type `make test` in the shell, the generated executable `exec/exp` will be executed.

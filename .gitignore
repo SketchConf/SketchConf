@@ -1,0 +1,6 @@
+.vscode
+build/
+exec/
+debug/
+dataset/
+.DS_Store
