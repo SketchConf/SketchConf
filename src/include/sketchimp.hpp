@@ -1,6 +1,7 @@
 #pragma once
 #include <cstring>
 #include <vector>
+#include <algorithm>
 #include "defs.hpp"
 #include "hash.hpp"
 
@@ -72,22 +73,32 @@ namespace SKETCH
     private:
         int nrows_;
         int len_;
-        count_t** nt_;
+        int ** nt_;
         seed_t* seeds_;
-        seed_t sseed;
+        seed_t* sseed;
+
+        int get_sign(data_t item, int stage)
+        {
+            if (HASH::hash(item, sseed[stage]) % 2)
+                return 1;
+            else
+                return -1;
+        }
+
     public:
         CountSketch(int nrows, int ncols) : nrows_(nrows), len_(ncols)
         {
             seeds_=new seed_t[nrows_];
-            nt_=new count_t*[nrows_];
+            sseed=new seed_t[nrows_];
+            nt_=new int*[nrows_];
             for (int i=0;i<nrows_;i++)
             {
                 seeds_[i]=clock();
                 sleep(1);
-                nt_[i]=new count_t[len_];
-                memset(nt_[i], 0, sizeof(count_t)*len_);
+                sseed[i]=clock();
+                nt_[i]=new int[len_];
+                memset(nt_[i], 0, sizeof(int)*len_);
             }
-            sseed=clock();
         }
 
         void insert(data_t item) override
@@ -95,8 +106,23 @@ namespace SKETCH
             for (int i=0;i<nrows_;i++)
             {
                 int pos=HASH::hash(item, seeds_[i]) % len_;
-                nt_[i][pos] += HASH::hash(item, sseed);
+                nt_[i][pos] += get_sign(item, i);
             }
+        }
+
+        count_t query(data_t item) override
+        {
+            int tprst[nrows_];
+            for (int i=0;i<nrows_;i++)
+            {
+                int pos=HASH::hash(item, seeds_[i]) % len_;
+                tprst[i] = nt_[i][pos]*get_sign(item, i);
+            }
+            sort(tprst, tprst+nrows_);
+            if (nrows_ % 2)
+                return tprst[nrows_/2];
+            else
+                return (tprst[nrows_/2 - 1] + tprst[nrows_/2]) / 2;
         }
     };
 

@@ -127,6 +127,7 @@ vector<double> NitroCMSketch::trivial_simulate(count_t nrows, count_t ncols, con
         for (int i=0; i<nrows; i++)
         {
             seeds[i]=clock();
+            // LOG_DEBUG("@TowerSketch::trivial_simulate: seed[%d]=%lu", i, seeds[i]);
             sleep(1);
         }
         vector<double> cur(constraints.size(), 0);
@@ -184,6 +185,7 @@ vector<double> NitroCMSketch::trivial_simulate(count_t nrows, count_t ncols, con
             rst[i]=tpcur;
         }
 
+        // LOG_DEBUG("u=%d, p=%lf", u, rst[0]);
         if (stop_flag)
             break;
     }
@@ -193,9 +195,10 @@ vector<double> NitroCMSketch::trivial_simulate(count_t nrows, count_t ncols, con
 
 vector<double> NitroCMSketch::simulate_without_reuse(count_t nrows, count_t ncols, const std::deque<Constraint>& constraints, StreamGen& stream, bool trunc)
 {
+    // LOG_DEBUG("@NitroCM::simulate_without_reuse: nrows=%d, ncols=%d", nrows, ncols);
     if (nrows % 2 == 0)
     {
-        LOG_DEBUG("Unsupported");
+        LOG_ERROR("Unsupported");
         return vector<double>(constraints.size(), 1);
     }
     
@@ -204,6 +207,7 @@ vector<double> NitroCMSketch::simulate_without_reuse(count_t nrows, count_t ncol
         vector<double> rst(constraints.size(), 0);
         default_random_engine gen;
         poisson_distribution<int> dist(double(stream.getTotalFlows())/ncols);
+        // binomial_distribution<int> dist(stream.getTotalFlows(), 1.0/ncols);
         vector<bool> stop_arr(constraints.size(), false);
 
         for (int u=0;;u++)
@@ -239,11 +243,20 @@ vector<double> NitroCMSketch::simulate_without_reuse(count_t nrows, count_t ncol
                 if (!stop(u+1, rst[k], curst[k], constraints[k].prob))
                     stop_flag=false;
 
+                // if (fabs(curst[k]-rst[k]) <= STOP_THRESHOLD*rst[k])
+                //     stop_arr[k]=true;
+                // if (stop_arr[k]==false)
+                //     stop_flag=false;
+
                 rst[k]=curst[k];
             }
 
+            // for (int k=0;k<constraints.size();k++)
+            //     LOG_DEBUG("iter=%d, rst[%d]=%lf", u,k,rst[k]);
+
             if (stop_flag)
             {
+                // LOG_DEBUG("\t\tStop at iteration #%d", u);
                 break;
             }
         }
@@ -258,6 +271,8 @@ vector<double> NitroCMSketch::simulate_without_reuse(count_t nrows, count_t ncol
             }
             rst[i]=ans;
         }
+        // for (int k=0;k<constraints.size();k++)
+        //     LOG_DEBUG("RET: rst[%d]=%lf",k,rst[k]);
         return rst;
     }
     else
@@ -271,7 +286,7 @@ vector<double> NitroCMSketch::simulate_with_reuse(count_t nrows, count_t ncols, 
 {
     if (nrows % 2 == 0)
     {
-        LOG_DEBUG("Unsupported");
+        LOG_ERROR("Unsupported");
         return vector<double>(constraints.size(), 1);
     }
 
@@ -284,6 +299,7 @@ vector<double> NitroCMSketch::simulate_with_reuse(count_t nrows, count_t ncols, 
     int st=(nrows+1)/2;
     for (int u=0;u<constraints.size();u++)
     {
+        // done=l+5*sqrt(l);
         done = poisson_trunc(ncols, constraints[u], stream);
         double ppp=exp(-l);
         double s=ppp*arctables[u][0];
@@ -347,6 +363,7 @@ void NitroCMSketch::arcinit(double l, const std::deque<Constraint>& constraints,
                     else
                     {
                         arcnt=curcnt;
+                        // LOG_ERROR("nitr=%d", iii);
                     }
                 }
                 arctables[i].push_back(arcnt);
@@ -354,10 +371,166 @@ void NitroCMSketch::arcinit(double l, const std::deque<Constraint>& constraints,
         }
         else
         {
-            LOG_ERROR("TODO");
-            exit(-1);
+            double arcnt=0;
+            truncinit(done, stream);
+            default_random_engine gen;
+            for (int n=let; n<=done; n++)
+            {
+                double arcnt=0;
+                for (int iii=0;;iii++)
+                {
+                    double curcnt=0;
+                    for (int v=0;v<EPOCH;v++)
+                    {
+                        int cur = stream.new_stream();
+                        int err = cur;
+                        int curnum=binomial_distribution<int>(n, BIG_PERCENT)(gen);
+
+                        for (int j=0;j<curnum;j++)
+                            err+=stream.trunc_not_small_stream();
+                        
+                        err = binomial_distribution<int>(err, sample_rate)(gen);
+                        err=err/sample_rate;
+                        err -= cur;
+                        curcnt += P_bad(n-curnum, constraints[i].err-err);
+                    }
+
+                    curcnt=curcnt/EPOCH;
+                    curcnt=(curcnt+arcnt*iii)/(iii+1);
+
+                    if (stop(iii+1, arcnt, curcnt))
+                    {
+                        arcnt=curcnt;
+                        break;
+                    }
+                    else
+                    {
+                        arcnt=curcnt;
+                    }
+                }
+                arctables[i].push_back(arcnt);
+            }
         }
+        // for (int iiiii=0;iiiii<arctables[i].size();iiiii++)
+        //     LOG_DEBUG("arctables[%d][%d]=%lf",i,iiiii,arctables[i][iiiii]);
     }
+}
+
+// void NitroCMSketch::arcinit(double l, const std::deque<Constraint>& constraints, StreamGen& stream, bool trunc)
+// {
+//     int done=l+5*sqrt(l);
+//     if (arctables[0].size()>done)
+//         return;
+//     int let=arctables[0].size();
+//     if (!trunc)
+//     {
+//         default_random_engine gen;
+//         for (int n=let; n<=done; n++)
+//         {
+//             vector<double> arcnt(arctables.size(), 0);
+//             vector<bool> stop_arr(arctables.size(), false);
+            
+//             for (int iii=0;;iii++)
+//             {
+//                 bool stop_flag=true;
+//                 vector<double> curcnt(arctables.size(), 0);
+
+//                 for (int v=0;v<EPOCH;v++)
+//                 {
+//                     uint64_t cur=stream.new_stream();
+//                     uint64_t err=cur;
+//                     for (int j=0;j<n;j++)
+//                     {
+//                         err=err + stream.new_stream();
+//                     }
+//                     err = binomial_distribution<int>(err, sample_rate)(gen);
+
+//                     err=err/sample_rate;
+//                     for (int i=0;i<constraints.size();i++)
+//                     {
+//                         if (abs(int(err-cur)) > constraints[i].err)
+//                             curcnt[i]++;
+//                     }
+//                 }
+
+//                 for (int i=0;i<constraints.size();i++)
+//                 {
+//                     curcnt[i]=curcnt[i]/EPOCH;
+//                     curcnt[i]=(curcnt[i] + arcnt[i]*iii)/(iii+1);
+
+//                     if (!stop(iii+1, arcnt[i], curcnt[i]))
+//                         stop_flag=false;
+
+//                     // if (fabs(curcnt[i]-arcnt[i]) <= STOP_THRESHOLD*arcnt[i])
+//                     // {
+//                     //     stop_arr[i]=true;
+//                     // }
+//                     // if (stop_arr[i]==false)
+//                     //     stop_flag=false;
+
+//                     arcnt[i]=curcnt[i];
+//                 }
+//                 if (stop_flag)
+//                     break;
+//             }
+            
+//             for (int i=0;i<constraints.size();i++)
+//             {
+//                 arctables[i].push_back(arcnt[i]);
+//             }
+//         }
+//     }
+//     else
+//     {
+//         LOG_ERROR("TODO");
+//         exit(-1);
+//     }
+//     // for (int iiiii=0;iiiii<arctables[i].size();iiiii++)
+//     //     LOG_DEBUG("arctables[%u][%d][%d]=%lf",u,i,iiiii,arctables[u][i][iiiii]);
+
+// }
+
+void NitroCMSketch::truncinit(int done, StreamGen& stream)
+{
+    if (trunctables.size()>done)
+        return;
+    
+    int start=trunctables.size();
+    default_random_engine gen;
+    for (int n=start; n<=done; n++)
+    {
+        int* tpnt=new int[TINY_SIM_NUM];
+        for (int i=0;i<TINY_SIM_NUM;i++)
+        {
+            tpnt[i]=0;
+            for (int j=0;j<n;j++)
+                tpnt[i]+=stream.trunc_tiny_stream();
+            
+            tpnt[i] = binomial_distribution<int>(tpnt[i], sample_rate)(gen);
+            tpnt[i] /= sample_rate;
+        }
+        sort(tpnt, tpnt+TINY_SIM_NUM);
+        trunctables.push_back(tpnt);
+    }
+}
+
+/**
+ * @brief probability of the bad event where sum of [ntiny] tiny streams exceeds [sum] (i.e. P(S>sum))
+ */
+double NitroCMSketch::P_bad(int ntiny, double sum)
+{
+    if (ntiny==0)
+    {
+        if (sum>0)
+            return 0;
+        else
+            return 1;
+    }
+    if (sum <= 0)
+        return 1;
+    
+    auto it=upper_bound(trunctables[ntiny], trunctables[ntiny]+TINY_SIM_NUM, sum);
+    return 1 - (double(it-trunctables[ntiny])/TINY_SIM_NUM);
 }
 
 pair<double,double> NitroCMSketch::strawman_simulate(StreamGen& stream, const deque<Constraint>& constraints,count_t sum)
@@ -458,6 +631,7 @@ vector<double> NitroCountSketch::trivial_simulate(count_t nrows, count_t ncols, 
         for (int i=0; i<nrows; i++)
         {
             seeds[i]=clock();
+            // LOG_DEBUG("@TowerSketch::trivial_simulate: seed[%d]=%lu", i, seeds[i]);
             sleep(1);
         }
         sseed=clock();
@@ -517,6 +691,7 @@ vector<double> NitroCountSketch::trivial_simulate(count_t nrows, count_t ncols, 
             rst[i]=tpcur;
         }
 
+        // LOG_DEBUG("u=%d, p=%lf", u, rst[0]);
         if (stop_flag)
             break;
     }
@@ -526,9 +701,10 @@ vector<double> NitroCountSketch::trivial_simulate(count_t nrows, count_t ncols, 
 
 vector<double> NitroCountSketch::simulate_without_reuse(count_t nrows, count_t ncols, const std::deque<Constraint>& constraints, StreamGen& stream, bool trunc)
 {
+    // LOG_DEBUG("@NitroCM::simulate_without_reuse: nrows=%d, ncols=%d", nrows, ncols);
     if (nrows % 2 == 0)
     {
-        LOG_DEBUG("Unsupported");
+        LOG_ERROR("Unsupported");
         return vector<double>(constraints.size(), 1);
     }
     
@@ -571,11 +747,20 @@ vector<double> NitroCountSketch::simulate_without_reuse(count_t nrows, count_t n
                 if (!stop(u+1, rst[k], curst[k], constraints[k].prob))
                     stop_flag=false;
 
+                // if (fabs(curst[k]-rst[k]) <= STOP_THRESHOLD*rst[k])
+                //     stop_arr[k]=true;
+                // if (stop_arr[k]==false)
+                //     stop_flag=false;
+
                 rst[k]=curst[k];
             }
 
+            // for (int k=0;k<constraints.size();k++)
+            //     LOG_DEBUG("iter=%d, rst[%d]=%lf", u,k,rst[k]);
+
             if (stop_flag)
             {
+                // LOG_DEBUG("\t\tStop at iteration #%d", u);
                 break;
             }
         }
@@ -590,6 +775,8 @@ vector<double> NitroCountSketch::simulate_without_reuse(count_t nrows, count_t n
             }
             rst[i]=ans*2;
         }
+        // for (int k=0;k<constraints.size();k++)
+        //     LOG_DEBUG("RET: rst[%d]=%lf",k,rst[k]);
         return rst;
     }
     else
@@ -603,7 +790,7 @@ vector<double> NitroCountSketch::simulate_with_reuse(count_t nrows, count_t ncol
 {
     if (nrows % 2 == 0)
     {
-        LOG_DEBUG("Unsupported");
+        LOG_ERROR("Unsupported");
         return vector<double>(constraints.size(), 1);
     }
 
@@ -661,6 +848,7 @@ void NitroCountSketch::arcinit(double l, const std::deque<Constraint>& constrain
                         int tpcnt1=0, tpcnt2=0;
                         for (int j=0;j<n;j++)
                         {
+                            // err=err + binomial_distribution<int>(stream.new_stream(), sample_rate)(gen)*trivial_hash();
                             int tps=stream.new_stream();
                             if (trivial_hash()==1)
                                 tpcnt1 += tps;
@@ -686,6 +874,7 @@ void NitroCountSketch::arcinit(double l, const std::deque<Constraint>& constrain
                     else
                     {
                         arcnt=curcnt;
+                        // LOG_ERROR("nitr=%d", iii);
                     }
                 }
                 arctables[i].push_back(arcnt);
@@ -696,8 +885,95 @@ void NitroCountSketch::arcinit(double l, const std::deque<Constraint>& constrain
             LOG_ERROR("TODO");
             exit(-1);
         }
+        // for (int iiiii=0;iiiii<arctables[i].size();iiiii++)
+        //     LOG_DEBUG("arctables[%d][%d]=%lf",i,iiiii,arctables[i][iiiii]);
     }
 }
+
+// void NitroCountSketch::arcinit(double l, const std::deque<Constraint>& constraints, StreamGen& stream, bool trunc)
+// {
+//     int done=l+5*sqrt(l);
+//     if (arctables[0].size()>done)
+//         return;
+//     int let=arctables[0].size();
+//     if (!trunc)
+//     {
+//         default_random_engine gen;
+//         for (int n=let; n<=done; n++)
+//         {
+//             vector<double> arcnt(arctables.size(), 0);
+//             vector<bool> stop_arr(arctables.size(), false);
+            
+//             for (int iii=0;;iii++)
+//             {
+//                 bool stop_flag=true;
+//                 vector<double> curcnt(arctables.size(), 0);
+
+//                 for (int v=0;v<EPOCH;v++)
+//                 {
+//                     int cur=stream.new_stream();
+//                     int err=binomial_distribution<int>(cur, sample_rate)(gen);
+//                     int tpcnt1=0, tpcnt2=0;
+//                     for (int j=0;j<n;j++)
+//                     {
+//                         // err=err + binomial_distribution<int>(stream.new_stream(), sample_rate)(gen)*trivial_hash();
+//                         int tps=stream.new_stream();
+//                         if (trivial_hash()==1)
+//                             tpcnt1 += tps;
+//                         else
+//                             tpcnt2 += tps;
+//                     }
+//                     tpcnt1=binomial_distribution<int>(tpcnt1, sample_rate)(gen);
+//                     tpcnt2=binomial_distribution<int>(tpcnt2, sample_rate)(gen);
+//                     err=err+tpcnt1-tpcnt2;
+                    
+//                     err=err/sample_rate;
+//                     for (int i=0;i<constraints.size();i++)
+//                     {
+//                         if (err-cur > constraints[i].err)
+//                             curcnt[i]++;
+//                     }
+//                 }
+
+//                 for (int i=0;i<constraints.size();i++)
+//                 {
+//                     curcnt[i]=curcnt[i]/EPOCH;
+//                     curcnt[i]=(curcnt[i] + arcnt[i]*iii)/(iii+1);
+
+//                     if (!stop(iii+1, arcnt[i], curcnt[i]))
+//                         stop_flag=false;
+
+//                     // if (fabs(curcnt[i]-arcnt[i]) <= STOP_THRESHOLD*arcnt[i])
+//                     // {
+//                     //     stop_arr[i]=true;
+//                     // }
+//                     // if (stop_arr[i]==false)
+//                     //     stop_flag=false;
+
+//                     arcnt[i]=curcnt[i];
+//                 }
+//                 if (stop_flag)
+//                 {
+//                     LOG_DEBUG("Stop at iter %d", iii);
+//                     break;
+//                 }
+//             }
+            
+//             for (int i=0;i<constraints.size();i++)
+//             {
+//                 arctables[i].push_back(arcnt[i]);
+//             }
+//         }
+//     }
+//     else
+//     {
+//         LOG_ERROR("TODO");
+//         exit(-1);
+//     }
+//     // for (int iiiii=0;iiiii<arctables[i].size();iiiii++)
+//     //     LOG_DEBUG("arctables[%u][%d][%d]=%lf",u,i,iiiii,arctables[u][i][iiiii]);
+
+// }
 
 pair<double,double> NitroCountSketch::strawman_simulate(StreamGen& stream, const deque<Constraint>& constraints,count_t sum)
 {

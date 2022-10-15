@@ -129,7 +129,7 @@ void experiment_1()
 void experiment_2()
 {
     LOG_INFO("Experiment #2: Experiments on Reusing simulation results");
-    const char input[] = "input/demand-exp2.txt";
+    const char input[] = "input/demand-exp234.txt";
     yyin = fopen(input, "r");
     assert(yyin);
     std::unique_ptr<BaseAst> ast;
@@ -165,7 +165,7 @@ void experiment_2()
 void experiment_3()
 {
     LOG_INFO("Experiment #3: Experiments on the Optimization");
-    const char input[] = "input/demand-exp34.txt";
+    const char input[] = "input/demand-exp234.txt";
     yyin = fopen(input, "r");
     assert(yyin);
     std::unique_ptr<BaseAst> ast;
@@ -204,7 +204,7 @@ void experiment_3()
 void experiment_4()
 {
     LOG_INFO("Experiment #4: Experiments on Configurations");
-    const char input[] = "input/demand-exp34.txt";
+    const char input[] = "input/demand-exp234.txt";
     yyin = fopen(input, "r");
     assert(yyin);
     std::unique_ptr<BaseAst> ast;

@@ -6,8 +6,13 @@
 
 class StreamGen {
 private:
-    count_t cnt;
+    // // count_t TOTAL_BUCKETS;
+    count_t cnt; // = TOTAL_PACKETS
+    // count_t max_freq;
+    // count_t *nt; /* nt = count_t[max_freq] */
+    // count_t *trunc_start = NULL, *trunc_end = NULL;
     std::vector<count_t> freqs;
+    // count_t trunc_min_accumulate_num, trunc_max_accumulate_num;
     std::vector<count_t> freqs_small;
     std::vector<count_t> freqs_big;
 
@@ -41,11 +46,29 @@ public:
     void init(std::vector<double>& dist);
 
     /**
+     * @brief Initial from zipfian distribution
+     * 
+     * @param alpha zipf paramter
+     * @param N_FLOWS # flows (distinct items)
+     * @param N_PACKETS # total packets
+     */
+    void init(double alpha, int N_FLOWS, int N_PACKETS);
+
+    /**
      * @brief init() should be called first!
      * Generate a new stream w.r.t. the data distribution
      * @return # apperence of the generated stream
      */
     count_t new_stream();
+
+    /**
+     * @brief should be called before trunc_new_stream(). In order to sample
+     * flow whose frequence is only in [min_freq, max_freq)
+     *
+     * @param freq_lower_bound lower bound of the frequency
+     * @param freq_upper_bound upper bound of the frequency
+     */
+    // void trunc_stream_init(count_t freq_lower_bound, count_t freq_upper_bound);
 
     /**
      * @brief should be called before trunc_new_stream(). In order to sample
@@ -63,11 +86,44 @@ public:
     count_t trunc_tiny_stream();
 
     /**
+     * @brief generate stream whose frequency in [min_freq, max_freq)
+     *
+     * @return count_t frequency of the generated stream
+     */
+    // count_t trunc_middle_stream();
+
+    /**
+     * @brief generate stream whose frequency in [max_freq, +infty)
+     *
+     * @return count_t frequency of the generated stream
+     */
+    // count_t trunc_big_stream();
+
+    /**
+     * @brief generate stream whose frequency in [1, max_freq)
+     *
+     * @return count_t frequency of the generated stream
+     */
+    // count_t trunc_not_big_stream();
+
+    /**
      * @brief generate stream whose frequency in [min_freq, +infty)
      *
      * @return count_t frequency of the generated stream
      */
     count_t trunc_not_small_stream();
+
+    // /**
+    //  * @return double P(frequency>freq)
+    //  */
+    // double P_bigger_than(count_t freq);
+
+    // /**
+    //  * @return P(frequency<freq)
+    //  */
+    // double P_smaller_than(count_t freq);
+
+    // void print_distribution();
 
     auto getTotalFlows() const 
     {

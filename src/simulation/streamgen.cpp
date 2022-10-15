@@ -1,12 +1,12 @@
-#include "include/defs.hpp"
-#include "include/streamgen.h"
-#include "include/logger.hpp"
-#include "include/util.h"
+#include "defs.hpp"
+#include "streamgen.h"
+#include "logger.hpp"
 #include <ctime>
 #include <cstdlib>
 #include <algorithm>
 #include <cstring>
 #include <string>
+#include <assert.h>
 using namespace std;
 
 data_t* StreamGen::read_data(const char *PATH, const int size)
@@ -56,13 +56,32 @@ void StreamGen::init(string file, int size)
         }
     }
     TOTAL_FLOWS = counter.size();
-    LOG_INFO("Total items: %d, Distinct items: %d", TOTAL_PACKETS, TOTAL_FLOWS);
+    // TOTAL_BUCKETS = TOTAL_FLOWS / 10;
+    LOG_INFO("Total flows: %d", TOTAL_FLOWS);
+    LOG_INFO("Total packets: %d", TOTAL_PACKETS);
 
     for (auto it : counter)
     {
         freqs.push_back(it.second);
     }
 
+    // Find max frequences
+    // max_freq = 0;
+    // for (auto it = counter.begin(); it != counter.end();it++)
+    // {
+    //     max_freq = std::max(max_freq, it->second);
+    // }
+    // max_freq++;
+    // nt = new count_t[max_freq];
+    // memset(nt, 0, max_freq * sizeof(count_t));
+    // for (auto it = counter.begin(); it != counter.end(); it++)
+    // {
+    //     nt[it->second] += 1;
+    // }
+    // for (int i = 1; i < max_freq;i++)
+    // {
+    //     nt[i] += nt[i - 1];
+    // }
     srand(clock());
 }
 
@@ -86,11 +105,55 @@ void StreamGen::init(vector<double>& dist)
     cnt=TOTAL_PACKETS;
 }
 
+void StreamGen::init(double alpha, int N_FLOWS, int N_PACKETS)
+{
+    TOTAL_FLOWS = 0;
+    TOTAL_PACKETS = 0;
+    raw_data = new data_t[N_PACKETS];
+    double M = 0;
+    for (int i=1;i<=N_FLOWS;i++)
+        M += 1.0/pow(i, alpha);
+
+    int curpos = 0;
+    for (int i=1;i<=N_FLOWS;i++)
+    {
+        count_t curfreq = N_PACKETS*1.0 / (pow(i, alpha)*M);
+        if (curfreq < 1)
+            break;
+        TOTAL_FLOWS++;
+        TOTAL_PACKETS+=curfreq;
+        assert(counter.insert(std::make_pair(i, curfreq)).second);
+        freqs.push_back(curfreq);
+        for (int ii=0;ii<curfreq;ii++)
+        {
+            raw_data[curpos] = i;
+            curpos++;
+        }
+    }
+
+    LOG_INFO("Total flows: %d", TOTAL_FLOWS);
+    LOG_INFO("Total packets: %d", TOTAL_PACKETS);
+    cnt = TOTAL_PACKETS;
+}
+
 count_t StreamGen::new_stream()
 {
+    // count_t cur = static_cast<count_t>(rand());
+    // cur = cur % nt[max_freq-1];
+    // auto it = std::lower_bound(nt, nt + max_freq, cur);
+    // return static_cast<count_t>(it - nt);
+
     int pos=double(rand())*TOTAL_FLOWS/RAND_MAX;
     return freqs[pos];
 }
+
+// void StreamGen::trunc_stream_init(count_t freq_lower_bound, count_t freq_upper_bound)
+// {
+//     trunc_start=nt+freq_lower_bound;
+//     trunc_end=nt+freq_upper_bound;
+//     trunc_min_accumulate_num = *trunc_start;
+//     trunc_max_accumulate_num = *trunc_end;
+// }
 
 void StreamGen::trunc_stream_init(count_t freq_lower_bound)
 {
@@ -103,16 +166,76 @@ void StreamGen::trunc_stream_init(count_t freq_lower_bound)
     }
     TOTAL_BIG=freqs_big.size();
     TOTAL_SMALL=freqs_small.size();
+    if (TOTAL_SMALL == 0)
+        LOG_ERROR("No small flows!");
 }
 
 count_t StreamGen::trunc_tiny_stream()
 {
+    if (TOTAL_SMALL == 0)
+        return new_stream();
     double pos=double(rand())*TOTAL_SMALL/RAND_MAX;
     return freqs_small[pos];
 }
+
+// count_t StreamGen::trunc_middle_stream()
+// {
+//     count_t cur = static_cast<count_t>(rand());
+//     cur = cur % (trunc_max_accumulate_num-trunc_min_accumulate_num);
+//     cur += trunc_min_accumulate_num;
+//     auto it = std::lower_bound(trunc_start, trunc_end, cur);
+//     return static_cast<count_t>(it - nt);
+// }
+
+// count_t StreamGen::trunc_big_stream()
+// {
+//     count_t cur = static_cast<count_t>(rand());
+//     cur = cur % (nt[max_freq-1]-trunc_max_accumulate_num);
+//     cur += trunc_max_accumulate_num;
+//     auto it = std::lower_bound(trunc_end, nt+max_freq, cur);
+//     return static_cast<count_t>(it - nt);
+// }
+
+// count_t StreamGen::trunc_not_big_stream()
+// {
+//     count_t cur = static_cast<count_t>(rand());
+//     cur = cur % (trunc_max_accumulate_num-1);
+//     cur += 1;
+//     auto it = std::lower_bound(nt, trunc_end, cur);
+//     return static_cast<count_t>(it - nt);
+// }
 
 count_t StreamGen::trunc_not_small_stream()
 {
     double pos=double(rand())*TOTAL_BIG/RAND_MAX;
     return freqs_big[pos];
 }
+
+// double StreamGen::P_bigger_than(count_t freq)
+// {
+//     return double(nt[max_freq-1]-nt[freq])/nt[max_freq-1];
+// }
+
+// double StreamGen::P_smaller_than(count_t freq)
+// {
+//     return double(nt[freq-1])/nt[max_freq-1];
+// }
+
+// void StreamGen::print_distribution()
+// {
+//     std::vector<count_t> freq;
+//     for (auto it : counter)
+//     {
+//         freq.push_back(it.second);
+//     }
+//     sort(freq.begin(),freq.end());
+//     LOG_INFO("Flow distribution:");
+//     LOG_INFO("Percentile | Frequency");
+//     LOG_INFO("\t50\t%d",freq[int(0.5*TOTAL_FLOWS)]);
+//     LOG_INFO("\t60\t%d",freq[int(0.6*TOTAL_FLOWS)]);
+//     LOG_INFO("\t70\t%d",freq[int(0.7*TOTAL_FLOWS)]);
+//     LOG_INFO("\t80\t%d",freq[int(0.8*TOTAL_FLOWS)]);
+//     LOG_INFO("\t90\t%d",freq[int(0.9*TOTAL_FLOWS)]);
+//     LOG_INFO("\t95\t%d",freq[int(0.95*TOTAL_FLOWS)]);
+//     LOG_INFO("\t99\t%d",freq[int(0.99*TOTAL_FLOWS)]);
+// }

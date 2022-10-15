@@ -93,12 +93,19 @@ public:
             for (int j=0;j<n_constraints;j++)
                 arctables[i].push_back(vector<double>());
         }
+
+        int* tp=new int[TINY_SIM_NUM];
+        memset(tp, 0, TINY_SIM_NUM*sizeof(int));
+        trunctables.push_back(tp);
     }
 private:
     vector<vector<double> > arctables[4];
+    vector<int*> trunctables;
     virtual std::vector<double> simulate_without_reuse(count_t nrows, count_t ncols, const std::deque<Constraint>& constraints, StreamGen& stream, bool trunc) override;
     virtual std::vector<double> simulate_with_reuse(count_t nrows, count_t ncols, const std::deque<Constraint>& constraints, StreamGen& stream, bool trunc) override;
     void arcinit(vector<double >& l, const std::deque<Constraint>& constraints, StreamGen& stream, bool trunc);
+    void truncinit(int done, StreamGen& stream);
+    double P_bad(int ntiny, double sum);
 public:
     virtual std::vector<double> ground_truth(count_t nrows, count_t ncols, const std::deque<Constraint>& constraints, StreamGen& stream) override;
     virtual std::pair<double,double> strawman_simulate(StreamGen& stream, const std::deque<Constraint>& constraints,count_t sum) override;
@@ -114,13 +121,20 @@ public:
         {
             arctables.push_back(vector<double>());
         }
+
+        int* tp=new int[TINY_SIM_NUM];
+        memset(tp, 0, TINY_SIM_NUM*sizeof(int));
+        trunctables.push_back(tp);
     }
 private:
     vector<vector<double> > arctables;
+    vector<int*> trunctables;
     double sample_rate;
     virtual std::vector<double> simulate_without_reuse(count_t nrows, count_t ncols, const std::deque<Constraint>& constraints, StreamGen& stream, bool trunc) override;
     virtual std::vector<double> simulate_with_reuse(count_t nrows, count_t ncols, const std::deque<Constraint>& constraints, StreamGen& stream, bool trunc) override;
     void arcinit(double l, const std::deque<Constraint>& constraints, StreamGen& stream, bool trunc);
+    void truncinit(int done, StreamGen& stream);
+    double P_bad(int ntiny, double sum);
 public:
     virtual std::vector<double> ground_truth(count_t nrows, count_t ncols, const std::deque<Constraint>& constraints, StreamGen& stream) override;
     virtual std::pair<double,double> strawman_simulate(StreamGen& stream, const std::deque<Constraint>& constraints,count_t sum) override;
